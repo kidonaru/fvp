@@ -11,6 +11,7 @@ import 'package:logging/logging.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:ffi/ffi.dart';
+import 'disposable_event_controller.dart';
 import 'fvp_platform_interface.dart';
 import 'extensions.dart';
 import 'lib.dart';
@@ -29,18 +30,43 @@ const _kDefaultMdkKey =
     '976AB1146EC55FFD1945CAB4125B20D5C77976CF1BCB77B14C563868EA00EA07';
 
 class MdkVideoPlayer extends mdk.Player {
-  final streamCtl = StreamController<VideoEvent>();
+  final _events = DisposableEventController<VideoEvent>();
+  late final StreamSubscription<
+          ({mdk.MediaStatus oldValue, mdk.MediaStatus newValue})>
+      _mediaStatusSubscription;
+  late final StreamSubscription<mdk.MediaEvent> _eventSubscription;
+  late final StreamSubscription<
+          ({mdk.PlaybackState oldValue, mdk.PlaybackState newValue})>
+      _stateSubscription;
   bool _initialized = false;
+  bool _isDisposed = false;
+
+  Stream<VideoEvent> get eventStream => _events.stream;
+
+  void addError(Object error, [StackTrace? stackTrace]) {
+    _events.addError(error, stackTrace);
+  }
+
+  void addEvent(VideoEvent event) {
+    _events.add(event);
+  }
 
   @override
   void dispose() {
-    streamCtl.close();
+    if (_isDisposed) {
+      return;
+    }
+    _isDisposed = true;
+    unawaited(_mediaStatusSubscription.cancel());
+    unawaited(_eventSubscription.cancel());
+    unawaited(_stateSubscription.cancel());
+    _events.close();
     _initialized = false;
     super.dispose();
   }
 
   MdkVideoPlayer() : super() {
-    onMediaStatus.listen((event) {
+    _mediaStatusSubscription = onMediaStatus.listen((event) {
       final oldValue = event.oldValue;
       final newValue = event.newValue;
       _log.fine(
@@ -60,7 +86,7 @@ class MdkVideoPlayer extends mdk.Player {
           if (size == null) {
             return;
           }
-          streamCtl.add(VideoEvent(
+          _events.add(VideoEvent(
               eventType: VideoEventType.initialized,
               duration: Duration(
                   microseconds: isLive
@@ -71,20 +97,20 @@ class MdkVideoPlayer extends mdk.Player {
         });
       } else if (!oldValue.test(mdk.MediaStatus.buffering) &&
           newValue.test(mdk.MediaStatus.buffering)) {
-        streamCtl.add(VideoEvent(eventType: VideoEventType.bufferingStart));
+        _events.add(VideoEvent(eventType: VideoEventType.bufferingStart));
       } else if (!oldValue.test(mdk.MediaStatus.buffered) &&
           newValue.test(mdk.MediaStatus.buffered)) {
-        streamCtl.add(VideoEvent(eventType: VideoEventType.bufferingEnd));
+        _events.add(VideoEvent(eventType: VideoEventType.bufferingEnd));
       }
     });
 
-    onEvent.listen((ev) {
+    _eventSubscription = onEvent.listen((ev) {
       _log.fine(
           '$hashCode player$nativeHandle onEvent: ${ev.category} - ${ev.detail} - ${ev.error}');
       if (ev.category == "reader.buffering") {
         final pos = position;
         final bufLen = buffered();
-        streamCtl.add(
+        _events.add(
             VideoEvent(eventType: VideoEventType.bufferingUpdate, buffered: [
           DurationRange(
               Duration(microseconds: pos), Duration(milliseconds: pos + bufLen))
@@ -92,15 +118,15 @@ class MdkVideoPlayer extends mdk.Player {
       }
     });
 
-    onStateChanged.listen((event) {
+    _stateSubscription = onStateChanged.listen((event) {
       _log.fine(
           '$hashCode player$nativeHandle onPlaybackStateChanged: ${event.oldValue} => ${event.newValue}');
       if (event.newValue == mdk.PlaybackState.stopped) {
         // FIXME: keep_open no stopped
-        streamCtl.add(VideoEvent(eventType: VideoEventType.completed));
+        _events.add(VideoEvent(eventType: VideoEventType.completed));
         return;
       }
-      streamCtl.add(VideoEvent(
+      _events.add(VideoEvent(
           eventType: VideoEventType.isPlayingStateUpdate,
           isPlaying: event.newValue == mdk.PlaybackState.playing));
     });
@@ -315,7 +341,7 @@ class MdkVideoPlayerPlatform extends VideoPlayerPlatform {
     if (ret < 0) {
       // no throw, handle error in controller.addListener
       _players[-hashCode] = player;
-      player.streamCtl.addError(PlatformException(
+      player.addError(PlatformException(
         code: 'media open error',
         message: 'invalid or unsupported media',
       ));
@@ -331,7 +357,7 @@ class MdkVideoPlayerPlatform extends VideoPlayerPlatform {
         fit: _fitMaxSize);
     if (tex < 0) {
       _players[-hashCode] = player;
-      player.streamCtl.addError(PlatformException(
+      player.addError(PlatformException(
         code: 'video size error',
         message: 'invalid or unsupported media with invalid video size',
       ));
@@ -384,7 +410,7 @@ class MdkVideoPlayerPlatform extends VideoPlayerPlatform {
     final pos = player.position;
     final bufLen = player.buffered();
     final ranges = player.bufferedTimeRanges();
-    player.streamCtl.add(VideoEvent(
+    player.addEvent(VideoEvent(
         eventType: VideoEventType.bufferingUpdate,
         buffered: ranges +
             [
@@ -398,9 +424,9 @@ class MdkVideoPlayerPlatform extends VideoPlayerPlatform {
   Stream<VideoEvent> videoEventsFor(int playerId) {
     final player = _players[playerId];
     if (player != null) {
-      return player.streamCtl.stream;
+      return player.eventStream;
     }
-    throw Exception('No Stream<VideoEvent> for textureId/playerId: $playerId.');
+    throw Exception('textureId/playerId $playerId に対応するイベントストリームがありません。');
   }
 
   @override

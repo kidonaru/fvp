@@ -40,3 +40,4 @@ local.properties
 .dart_tool/
 .packages
 build/
+lib/src/version.h
