@@ -6,9 +6,13 @@
 #include <condition_variable>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <unordered_map>
 #include <iostream>
 #include <thread>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 #include "dart_api_types.h"
 #include "callbacks.h"
 #if __has_include("version.h")
@@ -16,6 +20,35 @@
 #endif
 
 using namespace std;
+
+// Dart_CObject の文字列は UTF-8 が必要。Windows の MDK ログが ACP の場合だけ変換する。
+static string normalizeLogMessage(const char* logMsg)
+{
+    if (!logMsg)
+        return {};
+#ifndef _WIN32
+    return logMsg;
+#else
+    if (MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, logMsg, -1, nullptr, 0) > 0)
+        return logMsg;
+
+    const auto wideSize = MultiByteToWideChar(CP_ACP, 0, logMsg, -1, nullptr, 0);
+    if (wideSize <= 0)
+        return logMsg;
+    wstring wide(wideSize, L'\0');
+    if (MultiByteToWideChar(CP_ACP, 0, logMsg, -1, wide.data(), wideSize) <= 0)
+        return logMsg;
+
+    const auto utf8Size = WideCharToMultiByte(CP_UTF8, 0, wide.data(), -1, nullptr, 0, nullptr, nullptr);
+    if (utf8Size <= 0)
+        return logMsg;
+    string utf8(utf8Size, '\0');
+    if (WideCharToMultiByte(CP_UTF8, 0, wide.data(), -1, utf8.data(), utf8Size, nullptr, nullptr) <= 0)
+        return logMsg;
+    utf8.pop_back();
+    return utf8;
+#endif
+}
 
 class Player final: public mdk::Player
 {
@@ -61,6 +94,7 @@ FVP_EXPORT void MdkCallbacksRegisterPort(int64_t handle, void* post_c_object, in
             const auto type = int(CallbackType::Log);
             if (!(gCallbackTypes & (1 << type)))
                 return;
+            const auto normalizedLogMsg = normalizeLogMessage(logMsg);
             Dart_CObject t{
                 .type = Dart_CObject_kInt64,
                 .value = {
@@ -76,7 +110,7 @@ FVP_EXPORT void MdkCallbacksRegisterPort(int64_t handle, void* post_c_object, in
             Dart_CObject txt{
                 .type = Dart_CObject_kString,
                 .value = {
-                    .as_string = logMsg,
+                    .as_string = normalizedLogMsg.c_str(),
                 }
             };
             Dart_CObject* arr[] = { &t, &lv, &txt };
@@ -90,7 +124,8 @@ FVP_EXPORT void MdkCallbacksRegisterPort(int64_t handle, void* post_c_object, in
                 },
             };
             if (!postCObject(send_port, &msg)) {
-                cout << __func__ << "postCObject error" << endl; // clog: dead log. why post error?
+                clog << "[fvp] グローバルログの Dart 送信に失敗 level="
+                     << static_cast<int>(level) << endl;
                 return;
             }
         });
@@ -505,7 +540,6 @@ FVP_EXPORT bool MdkSeek(int64_t handle, int64_t pos, int64_t seekFlags, void* po
             },
         };
         if (!postCObject(send_port, &msg)) {
-            clog << __func__ << __LINE__ << " postCObject error" << endl; // when?
             return false;
         }
         return true;

@@ -58,6 +58,9 @@ target_include_directories(${PLUGIN_NAME} INTERFACE
 target_link_libraries(${PLUGIN_NAME} PRIVATE flutter flutter_wrapper_plugin)
 target_compile_options(${PLUGIN_NAME} PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:-D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR=1>")
 target_compile_options(${PLUGIN_NAME} PRIVATE "$<$<COMPILE_LANGUAGE:C,CXX>:-Os;-GR-;-EHs-c-a->")
+if(MSVC)
+  target_compile_options(${PLUGIN_NAME} PRIVATE /utf-8)
+endif()
 target_link_options(${PLUGIN_NAME} PRIVATE -opt:ref,icf,lbr)
 
 include(../cmake/deps.cmake)

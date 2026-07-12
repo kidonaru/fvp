@@ -143,7 +143,9 @@ class MdkVideoPlayerPlatform extends VideoPlayerPlatform {
   static bool? _tunnel;
   static String? _subtitleFontFile;
   static int _lowLatency = 0;
-  static int _seekFlags = mdk.SeekFlag.fromStart | mdk.SeekFlag.inCache;
+  static int _seekFlags = mdk.SeekFlag.fromStart;
+  static const _kSeekFailed = -1;
+  static const _kSeekRetryDelay = Duration(milliseconds: 50);
   static List<String>? _decoders;
   static final _mdkLog = Logger('mdk');
   // _prevImpl: required if registerWith() can be invoked multiple times by user
@@ -568,7 +570,15 @@ class MdkVideoPlayerPlatform extends VideoPlayerPlatform {
         return;
       }
     }
-    player.seek(position: position.inMilliseconds, flags: flags);
+    final result = await player.seek(
+      position: position.inMilliseconds,
+      flags: flags,
+    );
+    if (result != _kSeekFailed) return;
+
+    // MDK は初回 seek が一時的に失敗することがあるため、一度だけ再試行する。
+    await Future<void>.delayed(_kSeekRetryDelay);
+    await player.seek(position: position.inMilliseconds, flags: flags);
   }
 
   String _toUri(DataSource dataSource) {

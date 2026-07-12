@@ -186,6 +186,13 @@ class Player {
     _statusCb.close();
     Libfvp.unregisterType(nativeHandle, 2);
 
+    // 保留中の seek 完了コールバックを受信してからポートを閉じる。
+    // 参照を退避するのは、listener が完了時に _seeked を null 化するため。
+    final pendingSeek = _seeked;
+    if (pendingSeek != null && !pendingSeek.isCompleted) {
+      await pendingSeek.future.timeout(_kSeekDrainTimeout, onTimeout: () => -3);
+    }
+
     _receivePort.close();
 
     Libmdk.instance.mdkPlayerAPI_delete(_pp);
@@ -817,6 +824,12 @@ class Player {
   var _prepared = Completer<int>();
   Completer<Uint8List?>? _snapshot;
   Completer<int>? _seeked;
+
+  /// dispose 時に保留中の seek 完了コールバックを待つ最大時間。
+  /// mdk の seek 完了コールバックは dispose 直後に発火する（実測）ため
+  /// 通常はこの上限に達しない。上限は安全網。
+  static const _kSeekDrainTimeout = Duration(milliseconds: 50);
+
   final _receivePort = ReceivePort();
 
   final _eventCb = StreamController<MediaEvent>.broadcast();

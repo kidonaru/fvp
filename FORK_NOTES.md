@@ -18,6 +18,17 @@
 - dispose 後のイベントとエラーを安全に無視する。
 - dispose を冪等化する。
 
+### seek in-flight dispose のポート閉鎖後 postCObject error 対策
+
+`lib/src/player.dart` `Player.dispose()`: ポートを閉じる直前に保留中の
+seek 完了（`_seeked`）を最大 50ms 待つ。seek in-flight のまま dispose すると
+native seek コールバックが閉じたポートへ post して `callbacks.cpp` の
+`MdkSeek` が `postCObject error` を出す問題（ログノイズ・実害なし）を解消するため。
+
+- 待機は `_seeked` が未完了のときのみで、大多数の dispose では発生しない。
+- コールバック到達で即解決し、来ない稀なケースは 50ms でタイムアウトして従来挙動へ戻す。
+- native（C++）は変更していない。MdkSnapshot 経路は対象外。
+
 ## 検証
 
 ```powershell
