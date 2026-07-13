@@ -14,6 +14,7 @@ import 'package:ffi/ffi.dart';
 import 'disposable_event_controller.dart';
 import 'fvp_platform_interface.dart';
 import 'extensions.dart';
+import 'flac_attached_picture.dart';
 import 'lib.dart';
 import 'media_info.dart';
 
@@ -349,6 +350,25 @@ class MdkVideoPlayerPlatform extends VideoPlayerPlatform {
       ));
       //player.dispose(); // dispose for throw
       return -hashCode;
+    }
+    // FLAC添付カバー画像によるMDKネイティブ層のシークレース欠陥を回避する。
+    // mediaInfo取得またはsetActiveTracksが失敗しても、既存のmedia open error
+    // 処理へ混ぜず回避のみをスキップし、メディア再生全体は継続する。
+    try {
+      final attachedPictureTracks = disableFlacAttachedPictureTracks(
+        player.mediaInfo,
+        () => player.setActiveTracks(mdk.MediaType.video, const []),
+      );
+      if (attachedPictureTracks.isNotEmpty) {
+        _log.fine(
+          'player${player.nativeHandle} FLACの添付画像トラックを無効化します: '
+          '$attachedPictureTracks',
+        );
+      }
+    } catch (e) {
+      _log.fine(
+        'player${player.nativeHandle} FLAC添付画像トラックの無効化に失敗しました: $e',
+      );
     }
 // FIXME: pending events will be processed after texture returned, but no events before prepared
 // FIXME: set tunnel too late
