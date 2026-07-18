@@ -54,6 +54,21 @@ macro(fvp_setup_deps)
   set(MDK_SDK_URL ${FVP_DEPS_URL}/${MDK_SDK_PKG})
   set(MDK_SDK_SAVE "${CMAKE_CURRENT_SOURCE_DIR}/${MDK_SDK_PKG}")
 
+  # 展開済み mdk-sdk がどのパッケージ由来かを記録するマーカー。これが無いと
+  # 「FindMDK.cmake の有無」だけでキャッシュ判定してしまい、取得先タグや
+  # アーカイブ名を変更しても、別バージョンが展開済みの環境ではダウンロード・
+  # 再展開が丸ごとスキップされて古いバイナリを使い続けてしまう
+  # （2026-07: nightly 版が残ったまま v0.37.0 固定に切り替わらない事例で判明）。
+  set(MDK_SDK_PKG_MARKER "${CMAKE_CURRENT_SOURCE_DIR}/mdk-sdk/.fvp_pkg_name")
+  set(MDK_SDK_PKG_STALE ON)
+  if(EXISTS ${MDK_SDK_PKG_MARKER})
+    file(READ ${MDK_SDK_PKG_MARKER} MDK_SDK_PKG_INSTALLED)
+    string(STRIP "${MDK_SDK_PKG_INSTALLED}" MDK_SDK_PKG_INSTALLED)
+    if(MDK_SDK_PKG_INSTALLED STREQUAL MDK_SDK_PKG)
+      set(MDK_SDK_PKG_STALE OFF)
+    endif()
+  endif()
+
   set(DOWNLOAD_MDK_SDK OFF)
   message("FVP_DEPS_LATEST=$ENV{FVP_DEPS_LATEST}")
   # TODO: download from github option FVP_DEPS_LATEST_RELEASE=1
@@ -73,8 +88,8 @@ macro(fvp_setup_deps)
     endif()
   endif()
 
-  if(DOWNLOAD_MDK_SDK OR NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/mdk-sdk/lib/cmake/FindMDK.cmake)
-    if(DOWNLOAD_MDK_SDK OR NOT EXISTS ${MDK_SDK_SAVE})
+  if(DOWNLOAD_MDK_SDK OR MDK_SDK_PKG_STALE OR NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/mdk-sdk/lib/cmake/FindMDK.cmake)
+    if(DOWNLOAD_MDK_SDK OR MDK_SDK_PKG_STALE OR NOT EXISTS ${MDK_SDK_SAVE})
       message("Downloading mdk-sdk from ${MDK_SDK_URL}")
       file(DOWNLOAD ${MDK_SDK_URL} ${MDK_SDK_SAVE} SHOW_PROGRESS)
       file(MD5 ${MDK_SDK_SAVE} MDK_SDK_MD5_SAVE)
@@ -99,6 +114,7 @@ macro(fvp_setup_deps)
       file(REMOVE ${MDK_SDK_SAVE})
       message(FATAL_ERROR "Failed to extract mdk-sdk. You can download manually from ${MDK_SDK_URL} and extract to ${CMAKE_CURRENT_SOURCE_DIR}")
     endif()
+    file(WRITE ${MDK_SDK_PKG_MARKER} "${MDK_SDK_PKG}")
   endif()
   include(${CMAKE_CURRENT_SOURCE_DIR}/mdk-sdk/lib/cmake/FindMDK.cmake)
 endmacro()
