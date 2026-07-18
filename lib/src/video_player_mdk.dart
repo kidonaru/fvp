@@ -482,6 +482,10 @@ class MdkVideoPlayerPlatform extends VideoPlayerPlatform {
     _players[playerId]?.videoDecoders = value;
   }
 
+  /// registerWith 時に確定したデフォルトの動画デコーダ一覧。未確定なら null。
+  List<String>? getDefaultVideoDecoders() =>
+      _decoders == null ? null : List.unmodifiable(_decoders!);
+
   void record(int playerId, {String? to, String? format}) {
     _players[playerId]?.record(to: to, format: format);
   }

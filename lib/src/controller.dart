@@ -80,6 +80,11 @@ extension FVPControllerExtensions on VideoPlayerController {
     _platform.setVideoDecoders(_getId(this), value);
   }
 
+  /// Default video decoder list determined at registerWith(). null if not set.
+  List<String>? getDefaultVideoDecoders() {
+    return _platform.getDefaultVideoDecoders();
+  }
+
   /// Start to record if [to] is not null. Stop recording if [to] is null.
   /// [to] can be a local file, or are network stream, for example rtmp.
   /// If not stopped by user, recording will be stopped when playback is finished.
