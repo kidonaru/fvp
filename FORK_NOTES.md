@@ -29,6 +29,25 @@ native seek コールバックが閉じたポートへ post して `callbacks.cp
 - コールバック到達で即解決し、来ない稀なケースは 50ms でタイムアウトして従来挙動へ戻す。
 - native（C++）は変更していない。MdkSnapshot 経路は対象外。
 
+### mdk-sdk の取得先を release タグ固定に変更
+
+`cmake/deps.cmake` のデフォルトダウンロード先を sourceforge nightly から
+GitHub release `v0.37.0` に固定した。nightly `0.37.0.0 b345e19` に
+10bit (P010) 動画が紫/白に化けるレンダリングリグレッションがあり、
+無固定 nightly では再ダウンロードのたびに壊れたビルドへ入れ替わり得るため。
+
+- Windows x64 のアーカイブ名は release 側の命名 `mdk-sdk-windows-x64-vs2026.7z` に変更
+  （v0.37.0 release に旧名 `mdk-sdk-windows-x64.7z` は存在しない）
+- `FVP_DEPS_URL` 環境変数によるオーバーライドは従来どおり有効
+- `FVP_DEPS_LATEST` は release 固定中は使わないこと（release アセットに `.md5` が
+  提供されず、md5 比較が常に不一致になり毎回再ダウンロードされる）
+- Apple 側は `darwin/fvp/Package.swift` で元から v0.37.0 固定
+- 検証済みアーカイブのハッシュ（GitHub release はアセット差し替えが技術的に可能な
+  ため、将来「なぜか壊れた」時の切り分け用に記録）:
+  `mdk-sdk-windows-x64-vs2026.7z` SHA256 =
+  `5C08BA8B7DC08FC118180E89907478F29004D2D78D0E705CED71325D97D5018A`
+- mdk-sdk を更新するときは 10bit HEVC (Main10/P010) 動画の色表示を実機確認すること
+
 ## 検証
 
 ```powershell

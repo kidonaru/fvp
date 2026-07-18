@@ -25,9 +25,10 @@ endfunction(fvp_version)
 macro(fvp_setup_deps)
   fvp_version()
   if(WIN32)
-    set(MDK_SDK_PKG mdk-sdk-windows.7z)
+    # v0.37.0 release は vs2026 サフィックス付きの命名のみ提供される
+    set(MDK_SDK_PKG mdk-sdk-windows-vs2026.7z)
     if(CMAKE_CXX_COMPILER_ARCHITECTURE_ID MATCHES "[xX]64") # msvc
-      set(MDK_SDK_PKG mdk-sdk-windows-x64.7z)
+      set(MDK_SDK_PKG mdk-sdk-windows-x64-vs2026.7z)
     endif()
   elseif(ANDROID)
     set(MDK_SDK_PKG mdk-sdk-android.7z)
@@ -45,7 +46,10 @@ macro(fvp_setup_deps)
   if("$ENV{FVP_DEPS_URL}" MATCHES "^http") # github release: https://github.com/wang-bin/mdk-sdk/releases/latest/download
     set(FVP_DEPS_URL $ENV{FVP_DEPS_URL}) # TODO: md5
   else()
-    set(FVP_DEPS_URL https://sourceforge.net/projects/mdk-sdk/files/nightly)
+    # nightly は無固定で 10bit 紫化け等のリグレッションが混入するため、
+    # 検証済みの release タグへ固定する（2026-07: nightly b345e19 で実害発生）。
+    # Apple 側 (darwin/fvp/Package.swift) の v0.37.0 固定と揃えること。
+    set(FVP_DEPS_URL https://github.com/wang-bin/mdk-sdk/releases/download/v0.37.0)
   endif()
   set(MDK_SDK_URL ${FVP_DEPS_URL}/${MDK_SDK_PKG})
   set(MDK_SDK_SAVE "${CMAKE_CURRENT_SOURCE_DIR}/${MDK_SDK_PKG}")
