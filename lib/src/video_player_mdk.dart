@@ -317,9 +317,12 @@ class MdkVideoPlayerPlatform extends VideoPlayerPlatform {
       player.setProperty(key, value);
     });
 
-    if (_decoders != null) {
-      player.videoDecoders = _decoders!;
+    final decoders = videoDecodersOverride ?? _decoders;
+    if (decoders != null) {
+      player.videoDecoders = decoders;
     }
+    // 生成前オーバーライドのプロパティを prepare() 前に適用する
+    playerPropertyOverrides.forEach(player.setProperty);
     if (_lowLatency > 0) {
 // +nobuffer: the 1st key-frame packet is dropped. -nobuffer: high latency
       player.setProperty('avformat.fflags', '+nobuffer');
@@ -485,6 +488,15 @@ class MdkVideoPlayerPlatform extends VideoPlayerPlatform {
   /// registerWith 時に確定したデフォルトの動画デコーダ一覧。未確定なら null。
   List<String>? getDefaultVideoDecoders() =>
       _decoders == null ? null : List.unmodifiable(_decoders!);
+
+  /// create() 時に _decoders の代わりに使う動画デコーダ一覧。null なら既定を使う。
+  /// BT.709 強制など「prepare 前にデコーダを確定させたい」用途向け。
+  /// プロセスグローバルのため、有効中に生成される全プレイヤーへ適用される点に注意。
+  static List<String>? videoDecodersOverride;
+
+  /// create() 時に prepare() 前へ追加適用するプレイヤープロパティ。
+  /// 例: {'video.avfilter': 'scale=...'}（avfilter は SW デコーダ限定）
+  static Map<String, String> playerPropertyOverrides = {};
 
   void record(int playerId, {String? to, String? format}) {
     _players[playerId]?.record(to: to, format: format);
