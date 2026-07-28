@@ -38,6 +38,10 @@ mdk の音声バックエンドを差し替えられるようにした（`Player
 `['OpenAL']` を指定）。mdk v0.37.0 の iOS バイナリに `AudioBackendOpenAL` が
 含まれ OpenAL.framework をリンクしていることは strings で確認済み。
 
+本体 `app/lib/main.dart` からの `['OpenAL']` 指定は、iOS 音声の just_audio
+分離（2026-07-28）に伴い撤回済み（AVPlayer 対応音声は fvp を通らなくなり、
+OpenAL 緩和が不要になったため）。オプション自体は将来の実験用に維持する。
+
 ### mdk-sdk の取得先を release タグ固定に変更
 
 `cmake/deps.cmake` のデフォルトダウンロード先を sourceforge nightly から
