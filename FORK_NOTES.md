@@ -29,6 +29,15 @@ native seek コールバックが閉じたポートへ post して `callbacks.cp
 - コールバック到達で即解決し、来ない稀なケースは 50ms でタイムアウトして従来挙動へ戻す。
 - native（C++）は変更していない。MdkSnapshot 経路は対象外。
 
+### registerWith オプション `audioBackends` の追加
+
+`lib/src/video_player_mdk.dart`: `registerWith(options: {'audioBackends': [...]})` で
+mdk の音声バックエンドを差し替えられるようにした（`Player.audioBackends` を
+`create()` の setMedia 前に適用）。iOS ロック/スリープ中に AudioQueue 出力が
+無音になる問題の切り分け用（本体 `app/lib/main.dart` から iOS のみ
+`['OpenAL']` を指定）。mdk v0.37.0 の iOS バイナリに `AudioBackendOpenAL` が
+含まれ OpenAL.framework をリンクしていることは strings で確認済み。
+
 ### mdk-sdk の取得先を release タグ固定に変更
 
 `cmake/deps.cmake` のデフォルトダウンロード先を sourceforge nightly から

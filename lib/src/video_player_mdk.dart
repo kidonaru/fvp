@@ -148,6 +148,9 @@ class MdkVideoPlayerPlatform extends VideoPlayerPlatform {
   static const _kSeekFailed = -1;
   static const _kSeekRetryDelay = Duration(milliseconds: 50);
   static List<String>? _decoders;
+  // 音声バックエンド差し替え（fork 追加）。iOS ロック中の AudioQueue 無音問題の
+  // 切り分けで OpenAL 等へ差し替えるための registerWith オプション。
+  static List<String>? _audioBackends;
   static final _mdkLog = Logger('mdk');
   // _prevImpl: required if registerWith() can be invoked multiple times by user
   static VideoPlayerPlatform? _prevImpl;
@@ -188,6 +191,7 @@ class MdkVideoPlayerPlatform extends VideoPlayerPlatform {
       _globalOpts = options['global'];
       // TODO: _env => putenv
       _decoders = options['video.decoders'];
+      _audioBackends = (options['audioBackends'] as List?)?.cast<String>();
       _subtitleFontFile = options['subtitleFontFile'];
     }
 
@@ -316,6 +320,10 @@ class MdkVideoPlayerPlatform extends VideoPlayerPlatform {
     _playerOpts?.forEach((key, value) {
       player.setProperty(key, value);
     });
+    // 音声バックエンド差し替え（fork 追加）。setMedia より前に適用が必要。
+    if (_audioBackends != null) {
+      player.audioBackends = _audioBackends!;
+    }
 
     final decoders = videoDecodersOverride ?? _decoders;
     if (decoders != null) {
